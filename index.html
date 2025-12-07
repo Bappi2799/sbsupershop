@@ -1,0 +1,2367 @@
+<!DOCTYPE html>
+<html lang="bn">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic POS System (Offline Inventory & Sales)</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.71/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.71/vfs_fonts.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Base and Typography */
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #e9ebee;
+            /* Light Gray Background */
+            color: #333;
+        }
+
+        /* Main Layout - Modified for Single Page Application (SPA) view toggle */
+        .main-container {
+            display: block;
+            /* Change from grid to block for single-page view control */
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: transparent;
+        }
+
+        /* Styling for Left and Right Panels */
+        .left-panel,
+        .right-panel {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            /* Soft shadow */
+        }
+
+        .right-panel {
+            min-height: 80vh;
+            /* Ensure sales area is tall */
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1,
+        h2 {
+            color: #007bff;
+            /* Primary Blue */
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        /* Status Messages */
+        .status-message {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .info {
+            background-color: #e6f7ff;
+            color: #007bff;
+            border: 1px solid #91d5ff;
+        }
+
+        .success {
+            background-color: #f6ffed;
+            color: #52c41a;
+            border: 1px solid #b7eb8f;
+        }
+
+        .error {
+            background-color: #fff1f0;
+            color: #f5222d;
+            border: 1px solid #ffa39e;
+        }
+
+        .status-active {
+            background-color: #52c41a;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .status-inactive {
+            background-color: #f5222d;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+
+        /* Input/Button Styling */
+        input[type="text"],
+        input[type="number"],
+        input[type="file"],
+        select,
+        input[type="date"] {
+            padding: 10px;
+            margin: 5px 0 15px 0;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            width: calc(100% - 22px);
+            box-sizing: border-box;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        input:focus,
+        select:focus {
+            border-color: #40a9ff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: background-color 0.3s, transform 0.1s;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+            transform: translateY(-1px);
+        }
+
+        .delete-btn {
+            background-color: #faad14;
+        }
+
+        /* Warning color for delete */
+        .delete-btn:hover {
+            background-color: #d49211;
+        }
+
+        /* Specific Button Colors */
+        .btn-success {
+            background-color: #52c41a;
+        }
+
+        .btn-success:hover {
+            background-color: #389e08;
+        }
+
+        .btn-warning {
+            background-color: #faad14;
+        }
+
+        .btn-warning:hover {
+            background-color: #d49211;
+        }
+
+        .btn-info {
+            background-color: #1890ff;
+        }
+
+        .btn-info:hover {
+            background-color: #096dd9;
+        }
+
+        /* Action Card for Left Panel */
+        .action-card {
+            border: 1px solid #e9ecef;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+        }
+
+        /* Sales Panel Specifics */
+        #search-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        #search-input {
+            width: 100%;
+            font-size: 1.1em;
+            padding: 12px;
+        }
+
+        /* Suggestions Dropdown */
+        #suggestions {
+            position: absolute;
+            z-index: 10;
+            width: 100%;
+            max-height: 250px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            display: none;
+        }
+
+        .suggestion-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-item:hover,
+        .suggestion-item.active {
+            background-color: #e6f7ff;
+        }
+
+        .barcode-sku {
+            font-size: 0.8em;
+            color: #8c8c8c;
+            display: flex;
+            gap: 10px;
+        }
+
+        .stock-info {
+            font-weight: bold;
+            color: #faad14;
+        }
+
+        /* Sales Table Styling */
+        .sales-table-wrapper {
+            flex-grow: 1;
+            /* Table takes up remaining vertical space */
+            overflow-y: auto;
+            /* Scroll for many items */
+            margin-bottom: 15px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            color: #333;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        /* Grand Total Footer */
+        .total-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background-color: #f0f7ff;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid #d4e8ff;
+        }
+
+        .total-footer strong {
+            font-size: 1.5em;
+            color: #007bff;
+        }
+
+        #grandTotal {
+            font-size: 1.8em;
+            color: #ff4d4f;
+            font-weight: bold;
+        }
+
+        .payment-button-container {
+            text-align: right;
+            margin-top: 10px;
+        }
+
+
+        /* Modals - Keep styling similar for consistency */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Payment Modal Specifics */
+        #payableAmount,
+        #receivedAmount,
+        #changeAmount {
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+        #changeAmount {
+            font-size: 1.4em;
+        }
+
+        .payment-line {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 1024px) {
+            /* .main-container { grid-template-columns: 1fr; } - Removed grid, handled by new view toggler */
+
+            .left-panel,
+            .right-panel {
+                min-height: auto;
+            }
+
+            .payment-line {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .remove-payment-btn {
+                grid-column: 3 / 4;
+            }
+        }
+
+        /* Hide sections not critical for day-to-day sales by default */
+        #history-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .hidden-details {
+            display: none;
+            padding: 10px 0;
+            border-top: 1px dashed #ccc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <body>
+
+        <div id="loginModal"
+            style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;">
+            <div
+                style="background-color: white; padding: 30px; border-radius: 10px; width: 300px; text-align: center; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                <h2>লগইন করুন</h2>
+                <input type="text" id="usernameInput" placeholder="ইউজারনেম" required
+                    style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;">
+                <input type="password" id="passwordInput" placeholder="পাসওয়ার্ড" required
+                    style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px;">
+                <button id="loginButton"
+                    style="width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">লগইন</button>
+                <p id="loginMessage" style="color: red; margin-top: 10px;"></p>
+            </div>
+        </div>
+        <div id="mainContainer" style="display: none;">
+        </div>
+
+    </body>
+    <div class="main-container">
+
+        <div id="adminView" style="display: block; max-width: 800px; margin: 0 auto;">
+            <a href="#" onclick="showSalesView()"
+                style="display: block; margin: 0 0 20px 0; padding: 12px; background-color: #5cb85c; color: white; text-align: center; border-radius: 6px; text-decoration: none; font-weight: bold;">💸
+                বিক্রয় স্ক্রিন খুলুন</a>
+
+            <div class="left-panel" style="width: 100%;">
+
+                <div class="header-top">
+                    <h1>🛠️ POS Tools</h1>
+                    <div id="sessionStatus" class="status-inactive">⚠️ সেশন নেই</div>
+                </div>
+
+
+
+                <div class="action-card">
+                    <h2>📦 ইনভেন্টরি লোড (Master)</h2>
+                    <input type="file" id="excelFile" accept=".xlsx, .xls">
+                    <button onclick="processExcel()" class="btn-info">Load Master Inventory</button>
+                    <div id="import-status-message" class="info status-message">এক্সেল ফাইল নির্বাচন করুন।</div>
+                    <button onclick="downloadInventoryExcel()" style="background-color: #5bc0de;">স্টক ডেটা এক্সেল
+                        ডাউনলোড</button>
+                </div>
+
+                <div class="action-card">
+                    <h2>➕ স্টক ইন (GRN)</h2>
+                    <input type="file" id="grnFile" accept=".xlsx, .xls">
+                    <button onclick="processGRN()" style="background-color: #00bcd4;">Update Stock (GRN)</button>
+                    <div id="grn-status-message" class="info status-message">GRN ফাইল নির্বাচন করুন।</div>
+                </div>
+
+                <hr>
+
+                <div id="history-section">
+                    <h2 onclick="document.getElementById('hidden-history-details').style.display = document.getElementById('hidden-history-details').style.display === 'block' ? 'none' : 'block';"
+                        style="cursor: pointer; background-color: #f0f0f0; padding: 10px; border-radius: 6px;">
+                        📜 বিল হিস্টরি ও এক্সপোর্ট (Click to Expand)
+                    </h2>
+                    <div id="hidden-history-details" class="hidden-details">
+
+                        <div class="action-card" style="padding: 10px;">
+                            <h3>বিল নম্বর দিয়ে খুঁজুন</h3>
+                            <input type="text" id="billIdSearch" placeholder="INVYYMMDDXXXXX">
+                            <button onclick="searchAndPrintBill()" class="btn-info" style="width: 100%;">সার্চ ও
+                                প্রিন্ট</button>
+                        </div>
+
+                        <div class="action-card" style="padding: 10px;">
+                            <h3>নির্দিষ্ট তারিখের বিল এক্সপোর্ট</h3>
+                            <label for="startDate">শুরুর তারিখ:</label>
+                            <input type="date" id="startDate" style="width: 100%; margin-bottom: 5px;">
+                            <label for="endDate">শেষের তারিখ:</label>
+                            <input type="date" id="endDate" style="width: 100%; margin-bottom: 10px;">
+                            <button onclick="downloadBillHistory('excel')"
+                                style="background-color: #5cb85c; width: 48%;">এক্সেল</button>
+                            <button onclick="downloadBillHistory('pdf')"
+                                style="background-color: #d9534f; width: 48%;">PDF</button>
+                        </div>
+
+                        <div class="action-card" style="padding: 10px;">
+                            <h3>সমস্ত বিল ডাউনলোড</h3>
+                            <button onclick="downloadAllBills('excel')"
+                                style="background-color: #f0ad4e; width: 48%;">সব
+                                বিল এক্সেল</button>
+                            <button onclick="downloadAllBills('pdf')" style="background-color: #dc3545; width: 48%;">সব
+                                বিল
+                                PDF</button>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div id="salesView" style="display: none; width: 100%;">
+            <a href="#" onclick="showAdminView()" id="adminToggleBtn"
+                style="position: absolute; top: 30px; right: 30px; padding: 8px 15px; background-color: #f0ad4e; color: white; border-radius: 4px; text-decoration: none; z-index: 10;">🛠️
+                অ্যাডমিন টুলস</a>
+            <div class="action-card">
+                <h2>👤 ক্যাশিয়ার সেশন</h2>
+                <label for="cashierId">ক্যাশিয়ার ID:</label>
+                <input type="text" id="cashierId" placeholder="CAS001">
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="startNewSession()" class="btn-success" style="flex: 1;">সেশন শুরু করুন</button>
+                    <button onclick="openCashClosingModal()" class="btn-warning" style="flex: 1;">ক্যাশ
+                        ক্লোজিং</button>
+                </div>
+            </div>
+            <div class="right-panel" style="width: 100%; min-height: 90vh;">
+                <h2>💰 বিক্রয় (Sales)</h2>
+
+                <div id="search-container">
+                    <input type="text" id="search-input" placeholder="আর্টিকেল, বারকোড বা নাম দিয়ে খুঁজুন (Scan/Type)"
+                        disabled>
+                    <div id="suggestions"></div>
+                </div>
+                <div id="sales-status-message" class="info status-message">ডেটাবেস লোড হচ্ছে...</div>
+
+                <div class="sales-table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 30%;">নাম/বিবরণ</th>
+                                <th style="width: 15%;">Article</th>
+                                <th style="width: 15%;">মূল্য (৳)</th>
+                                <th style="width: 15%;">পরিমাণ</th>
+                                <th style="width: 15%;">মোট (৳)</th>
+                                <th style="width: 10%;">মুছুন</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sales-table-body">
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: #888; padding: 20px;">বিক্রয় করার জন্য
+                                    আইটেম যোগ করুন।
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="total-footer">
+                    <strong>গ্র্যান্ড টোটাল:</strong>
+                    <span id="grandTotal">0.00</span> ৳
+                </div>
+
+                <div class="payment-button-container">
+                    <button onclick="openPaymentModal()" class="btn-success"
+                        style="padding: 15px 30px; font-size: 1.2em;">
+                        ✅ পেমেন্ট করুন (F2)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="qtyModal" class="modal">
+        <div class="modal-content">
+            <h3>পরিমাণ (Quantity)</h3>
+            <p style="font-size: 1.1em; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 10px;">আইটেম:
+                <span id="modalProductName" style="color: #007bff;"></span>
+            </p>
+            <label for="qtyInput">পরিমাণ দিন:</label>
+            <input type="number" id="qtyInput" min="1" value="1" style="width: 100%;">
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button onclick="confirmQty()" class="btn-success">যোগ করুন</button>
+                <button onclick="document.getElementById('qtyModal').style.display='none'"
+                    style="background-color: #6c757d;">বাতিল</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <h3>পেমেন্ট</h3>
+            <p id="payableAmount" style="background-color: #e6f7ff; color: #007bff;">দেয় বিল: 0.00 ৳</p>
+
+            <div id="multiPaymentContainer">
+            </div>
+            <button onclick="addPaymentMethod()" class="btn-info" style="margin-bottom: 15px;">+ পেমেন্ট মোড যোগ
+                করুন</button>
+
+            <hr>
+
+            <p id="receivedAmount" style="background-color: #f6ffed; color: #52c41a;">পাওয়া গেছে: 0.00 ৳</p>
+            <p id="changeAmount"
+                style="font-size: 1.2em; background-color: #fff1f0; border-radius: 4px; padding: 10px;">ফেরত: 0.00 ৳</p>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button onclick="finalizePayment()" class="btn-success">✅ বিল ফাইনাল করুন ও প্রিন্ট</button>
+                <button onclick="document.getElementById('paymentModal').style.display='none'"
+                    style="background-color: #dc3545;">❌ বাতিল</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="closingModal" class="modal">
+        <div class="modal-content">
+            <h3>💸 ক্যাশ ক্লোজিং ও গণনা (Session: <span id="currentSessionDisplay" style="color: #007bff;">N/A</span>)
+            </h3>
+
+            <div id="denominationTable" class="action-card" style="background-color: #fcfcfc;">
+                <h4>নোট গণনা</h4>
+                <table id="cashCountTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 40%;">নোটের মূল্য (৳)</th>
+                            <th style="width: 30%;">সংখ্যা (Qty)</th>
+                            <th style="width: 30%;">মোট (৳)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="total-footer" style="flex-direction: column; align-items: flex-start; margin-top: 15px;">
+                <h4>📊 সেশন সারাংশ</h4>
+                <p>
+                    <strong>মোট গণনা করা ক্যাশ:</strong>
+                    <span id="reportedCashDisplay"
+                        style="font-size: 1.2em; color: #52c41a; font-weight: bold;">0.00</span> ৳
+                </p>
+                <div id="expectedCashRow" style="display: none;">
+                    <strong>সিস্টেম প্রত্যাশিত ক্যাশ:</strong>
+                    <span id="expectedCashDisplay"
+                        style="font-size: 1.2em; color: #007bff; font-weight: bold;">0.00</span> ৳
+                </div>
+                <div id="differenceRow" style="display: none; width: 100%;">
+                    <strong style="font-size: 1.2em;">পার্থক্য (Difference):</strong>
+                    <span id="differenceDisplay" style="font-size: 1.4em; font-weight: bold; color: #ff4d4f;">0.00
+                        ৳</span>
+                </div>
+            </div>
+
+            <div id="closingStatus" class="info status-message" style="margin-top: 10px;">গণনা শুরু করুন...</div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
+                <button onclick="closeSession()" class="btn-info">✅ সেশন বন্ধ করুন ও রিপোর্ট দিন</button>
+                <button onclick="document.getElementById('closingModal').style.display='none'" class="delete-btn">❌
+                    বাতিল</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- নতুন: ইউজার ও রোলস সংজ্ঞা (এগুলো খুবই insecure, শুধুমাত্র ডেমোর জন্য) ---
+        const USERS = [
+            { username: 'admin', password: '123', role: 'admin' }, // অ্যাডমিন ইউজার
+            { username: 'cashier', password: '456', role: 'cashier' } // ক্যাশিয়ার ইউজার
+            // আপনি চাইলে আরও ইউজার যোগ করতে পারেন
+        ];
+
+        let loggedInUser = null; // বর্তমান লগইন করা ইউজার
+
+        // ... আপনার অন্যান্য গ্লোবাল ভ্যারিয়েবল...
+        // --- নতুন: লগইন করার চেষ্টা ---
+        function attemptLogin() {
+            const username = document.getElementById('usernameInput').value;
+            const password = document.getElementById('passwordInput').value;
+            const message = document.getElementById('loginMessage');
+
+            const user = USERS.find(u => u.username === username && u.password === password);
+
+            if (user) {
+                loggedInUser = user;
+
+                // লগইন সফল
+                document.getElementById('loginModal').style.display = 'none'; // লগইন স্ক্রিন হাইড
+                document.getElementById('mainContainer').style.display = 'block'; // মূল কন্টেন্ট দেখাও
+                message.textContent = '';
+
+                handleSuccessfulLogin(user.role);
+
+            } else {
+                // লগইন ব্যর্থ
+                message.textContent = 'ভুল ইউজারনেম বা পাসওয়ার্ড।';
+            }
+        }
+
+        // --- সফল লগইনের পর অ্যাক্সেস নিয়ন্ত্রণ ---
+        // --- সফল লগইনের পর অ্যাক্সেস নিয়ন্ত্রণ ---
+        function handleSuccessfulLogin(role) {
+            const adminToggleBtn = document.getElementById('adminToggleBtn');
+            const cashierIdInput = document.getElementById('cashierId'); // নতুন: Cashier ID Input
+
+            // 1. লগইন করা ইউজারের ID সেট করা
+            if (cashierIdInput && loggedInUser) {
+                cashierIdInput.value = loggedInUser.username; // লগইন করা ইউজারনেম বসানো হলো
+            }
+
+            if (role === 'cashier') {
+                // 2. ক্যাশিয়ার: সেলস ভিউ দেখাও এবং অ্যাডমিন বাটন লুকানো
+                if (adminToggleBtn) adminToggleBtn.style.display = 'none';
+                showSalesView();
+
+                // 3. নিশ্চিত করা যে সেশন কন্ট্রোল দেখাচ্ছে
+                // Jehetu block-ti ekhon salesView-e, tai e-ti by default dekha jabe.
+                // Tobe jodi e-ti cashierId hishebe use korte chan, tobe nishchit korun j kono user logged in thakle e-ti dekha jabe.
+
+            } else if (role === 'admin') {
+                // 4. অ্যাডমিন: অ্যাডমিন বাটন দেখাও
+                if (adminToggleBtn) adminToggleBtn.style.display = 'inline-block';
+                showAdminView();
+
+                // 5. অ্যাডমিন যদি সেলস ভিউ-তে থাকে, তবে ক্যাশিয়ার সেশন কন্ট্রোলটি লুকিয়ে রাখা যেতে পারে (ঐচ্ছিক)
+                // const sessionControls = document.getElementById('cashierSessionControls');
+                // if (sessionControls) sessionControls.style.display = 'none';
+            }
+
+            // ... updateSessionDisplay(); (যদি এই ফাংশনটি আপনার সিস্টেমে থাকে) ...
+        } // --- নতুন: লগইন পেজ দেখানোর ফাংশন ---
+        function showLoginPage() {
+            // mainContainer লুকানো (আপনার পুরো POS কন্টেন্ট)
+            const mainContainer = document.getElementById('mainContainer');
+            if (mainContainer) {
+                mainContainer.style.display = 'none';
+            }
+
+            // loginModal দেখানো
+            const loginModal = document.getElementById('loginModal');
+            if (loginModal) {
+                loginModal.style.display = 'flex';
+            }
+
+            // গ্লোবাল স্টেট রিসেট করা
+            loggedInUser = null;
+            currentCashSession = null;
+            sessionStartTimeStamp = null; // Sales বন্ধ করার জন্য এটি গুরুত্বপূর্ণ
+
+            // লগইন ফিল্ডগুলি রিসেট করা
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('loginMessage').textContent = '';
+            document.getElementById('usernameInput').value = '';
+
+            // ইউজারনেম ফিল্ডে ফোকাস করা
+            document.getElementById('usernameInput').focus();
+        }
+        // --- ১. IndexedDB সেটআপ ও ভেরিয়েবল ---
+        const DB_NAME = 'POSMasterDB_Final_V12'; // Version incremented for fix stability
+        const INVENTORY_STORE_NAME = 'InventoryProducts';
+        const BILLS_STORE_NAME = 'Bills';
+        const SESSIONS_STORE_NAME = 'Sessions';
+        const CLOSING_STORE_NAME = 'CashClosings';
+        const DB_VERSION = 12; // Increased version for stability
+        let db;
+        let allProducts = [];
+        let salesItems = [];
+        let selectedProduct = null;
+        let activeSuggestionIndex = -1;
+        let currentPayments = [];
+        // Helper function for safe number parsing
+        function safeParseFloat(value) {
+            const result = parseFloat(value);
+            // যদি ইনপুট NaN বা null হয়, তবে 0 রিটার্ন করা হবে
+            return isNaN(result) ? 0 : result;
+        }
+
+        function safeParseInt(value) {
+            const result = parseInt(value);
+            // যদি ইনপুট NaN বা null হয়, তবে 0 রিটার্ন করা হবে
+            return isNaN(result) ? 0 : result;
+        }
+        // **ক্যাশিয়ার সেশন ভেরিয়েবল**
+        let currentCashierId = null;
+        let currentSessionId = null;
+
+        // **নোট গণনা ভেরিয়েবল**
+        const DENOMINATIONS = [1000, 500, 100, 50, 20, 10, 5, 2, 1];
+        const PAYMENT_METHODS = ['Cash', 'Bkash', 'Bank'];
+
+
+        // DOM Element References
+        const searchInput = document.getElementById('search-input');
+        const suggestionsDiv = document.getElementById('suggestions');
+        const salesTableBody = document.getElementById('sales-table-body');
+        const qtyModal = document.getElementById('qtyModal');
+        const qtyInput = document.getElementById('qtyInput');
+        const grandTotalSpan = document.getElementById('grandTotal');
+        const importStatusMessage = document.getElementById('import-status-message');
+        const salesStatusMessage = document.getElementById('sales-status-message');
+        const paymentModal = document.getElementById('paymentModal');
+        const payableAmountDiv = document.getElementById('payableAmount');
+        const receivedAmountDiv = document.getElementById('receivedAmount');
+        const changeAmountDiv = document.getElementById('changeAmount');
+        const multiPaymentContainer = document.getElementById('multiPaymentContainer');
+        const grnStatusMessage = document.getElementById('grn-status-message');
+        const cashierIdInput = document.getElementById('cashierId');
+        const sessionStatusDiv = document.getElementById('sessionStatus');
+        const closingModal = document.getElementById('closingModal');
+        const closingStatusDiv = document.getElementById('closingStatus');
+        const billIdSearchInput = document.getElementById('billIdSearch');
+
+        // Denomination DOMs
+        const cashCountTableBody = document.querySelector('#cashCountTable tbody');
+        const reportedCashDisplay = document.getElementById('reportedCashDisplay');
+        const expectedCashDisplay = document.getElementById('expectedCashDisplay');
+        const differenceDisplay = document.getElementById('differenceDisplay');
+        const currentSessionDisplay = document.getElementById('currentSessionDisplay');
+
+
+        // --- Debounce Function ---
+        function debounce(func, delay) {
+            let timeout;
+            return function (...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), delay);
+            };
+        }
+
+        // --- ২. IndexedDB কানেকশন, স্ট্রাকচার ও ডেটা লোড ---
+        function openDatabaseAndLoadData() {
+            if (salesStatusMessage) {
+                salesStatusMessage.className = 'info status-message';
+                salesStatusMessage.textContent = "ডেটাবেস কানেক্ট করা হচ্ছে...";
+            }
+
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+            request.onerror = (event) => {
+                if (salesStatusMessage) {
+                    salesStatusMessage.className = 'error status-message';
+                    salesStatusMessage.textContent = "❌ ত্রুটি: IndexedDB খুলতে সমস্যা।";
+                }
+            };
+
+            request.onsuccess = (event) => {
+                db = event.target.result;
+                loadAllProducts();
+                checkActiveSession();
+            };
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+
+                // Inventory Store
+                if (db.objectStoreNames.contains(INVENTORY_STORE_NAME)) {
+                    db.deleteObjectStore(INVENTORY_STORE_NAME);
+                }
+                const inventoryStore = db.createObjectStore(INVENTORY_STORE_NAME, { autoIncrement: true });
+                inventoryStore.createIndex('Article', 'Article', { unique: false });
+                inventoryStore.createIndex('Barcode', 'Barcode', { unique: false });
+                inventoryStore.createIndex('Description', 'Description', { unique: false });
+
+                // Bills Store
+                if (db.objectStoreNames.contains(BILLS_STORE_NAME)) {
+                    db.deleteObjectStore(BILLS_STORE_NAME);
+                }
+                const billsStore = db.createObjectStore(BILLS_STORE_NAME, { keyPath: 'id' });
+                billsStore.createIndex('date', 'date', { unique: false });
+                billsStore.createIndex('cashierId', 'cashierId', { unique: false });
+                billsStore.createIndex('sessionId', 'sessionId', { unique: false });
+
+                // Sessions Store
+                if (db.objectStoreNames.contains(SESSIONS_STORE_NAME)) {
+                    db.deleteObjectStore(SESSIONS_STORE_NAME);
+                }
+                const sessionsStore = db.createObjectStore(SESSIONS_STORE_NAME, { keyPath: 'sessionId' });
+                sessionsStore.createIndex('cashierId', 'cashierId', { unique: false });
+                sessionsStore.createIndex('startTime', 'startTime', { unique: false });
+
+                // Cash Closing History Store 
+                if (db.objectStoreNames.contains(CLOSING_STORE_NAME)) {
+                    db.deleteObjectStore(CLOSING_STORE_NAME);
+                }
+                const closingsStore = db.createObjectStore(CLOSING_STORE_NAME, { autoIncrement: true });
+                closingsStore.createIndex('sessionId', 'sessionId', { unique: false });
+            };
+        }
+
+        function loadAllProducts() {
+            if (!db) return;
+
+            if (salesStatusMessage) {
+                salesStatusMessage.className = 'info status-message';
+                salesStatusMessage.textContent = "ইনভেন্টরি ডেটা লোড হচ্ছে...";
+            }
+
+            const transaction = db.transaction([INVENTORY_STORE_NAME], 'readonly');
+            const objectStore = transaction.objectStore(INVENTORY_STORE_NAME);
+
+            allProducts = [];
+            objectStore.openCursor().onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    const product = cursor.value;
+                    product.key = cursor.key;
+                    allProducts.push(product);
+                    cursor.continue();
+                } else {
+                    if (allProducts.length > 0) {
+                        if (salesStatusMessage) {
+                            salesStatusMessage.className = 'success status-message';
+                            salesStatusMessage.textContent = `✅ ${allProducts.length} টি প্রোডাক্ট লোড হয়েছে।`;
+                        }
+                        if (searchInput) searchInput.disabled = false;
+                        if (searchInput) searchInput.focus();
+                    } else {
+                        if (salesStatusMessage) {
+                            salesStatusMessage.className = 'error status-message';
+                            salesStatusMessage.textContent = "⚠️ কোনো ইনভেন্টরি ডেটা পাওয়া যায়নি। উপরে এক্সেল ফাইল আপলোড করুন।";
+                        }
+                        if (searchInput) searchInput.disabled = true;
+                    }
+                }
+            };
+        }
+
+        // --- ৩. ক্যাশিয়ার সেশন লজিক ---
+
+        function checkActiveSession() {
+            // localStorage থেকে সরাসরি সেশন স্ট্যাটাস চেক করা
+            currentSessionId = localStorage.getItem('activeSessionId');
+            currentCashierId = localStorage.getItem('activeCashierId');
+
+            if (currentSessionId) {
+                // যদি সেশন চলে
+                // যদি currentCashierId না থাকে কিন্তু সেশন আইডি থাকে, তবে ইনপুট বক্সের মানটিকে ডিফল্ট মান বা 'CAS001' হিসেবে ধরে নেবে
+                currentCashierId = currentCashierId || cashierIdInput.value.trim() || 'CAS001';
+
+                updateSessionStatus(`✅ সেশন: ${currentSessionId} | ${currentCashierId}`);
+                if (cashierIdInput) {
+                    cashierIdInput.value = currentCashierId;
+                    cashierIdInput.disabled = true; // সেশন চললে অক্ষম
+                }
+                if (currentSessionDisplay) currentSessionDisplay.textContent = currentSessionId;
+                if (searchInput) searchInput.disabled = false; // সেশন চললে সার্চ সক্রিয়
+            } else {
+                // যদি সেশন বন্ধ থাকে
+                updateSessionStatus(`⚠️ সেশন নেই`);
+
+                // 🔥 নিশ্চিত রিসেট লজিক: সেশন বন্ধ থাকলে, বক্সটি এডিট করার জন্য সক্ষম হবে এবং মান মুছে যাবে।
+                if (cashierIdInput) {
+                    cashierIdInput.value = ''; // আইডি মুছে দেওয়া হলো
+                    cashierIdInput.disabled = false; // নিশ্চিতভাবে সক্ষম করা হলো
+                }
+
+                currentSessionId = null;
+                currentCashierId = null;
+                if (currentSessionDisplay) currentSessionDisplay.textContent = 'N/A';
+                if (searchInput) searchInput.disabled = true; // সেশন না চললে সার্চ নিষ্ক্রিয়
+            }
+        }
+
+        window.startNewSession = function () {
+            if (!cashierIdInput) return alert("Cashier ID ইনপুট ফিল্ড HTML এ নেই।");
+
+            const cashier = cashierIdInput.value.trim().toUpperCase();
+
+            if (currentSessionId) return alert(`❌ একটি সেশন চলছে: ${currentSessionId}! প্রথমে ক্যাশ ক্লোজিং করুন।`);
+
+            if (!cashier) {
+                alert("ক্যাশিয়ার আইডি দিন।");
+                return;
+            }
+
+            const newSessionId = `SESS${Date.now()}`;
+
+            const newSession = {
+                sessionId: newSessionId,
+                cashierId: cashier,
+                startTime: new Date().toISOString(),
+                status: 'OPEN',
+                initialCash: 0
+            };
+
+            const transaction = db.transaction([SESSIONS_STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(SESSIONS_STORE_NAME);
+
+            const request = store.add(newSession);
+
+            request.onsuccess = () => {
+                currentSessionId = newSessionId;
+                currentCashierId = cashier;
+                localStorage.setItem('activeSessionId', newSessionId);
+                localStorage.setItem('activeCashierId', cashier);
+
+                // সেশন শুরু হওয়ার পর UI আপডেট
+                updateSessionStatus(`✅ সেশন: ${currentSessionId} | ${currentCashierId}`);
+                if (cashierIdInput) cashierIdInput.disabled = true; // সেশন শুরু হলে অক্ষম
+                if (currentSessionDisplay) currentSessionDisplay.textContent = currentSessionId;
+                if (searchInput) searchInput.disabled = false; // সেশন চললে সার্চ সক্রিয়
+
+                // সেশন শুরু হওয়ার পর সরাসরি সেলস ভিউতে চলে যাও
+                showSalesView();
+            };
+
+            request.onerror = (e) => {
+                alert("সেশন শুরু করতে সমস্যা: " + e.target.error.message);
+            };
+        }
+
+        function updateSessionStatus(message) {
+            if (sessionStatusDiv) {
+                sessionStatusDiv.textContent = message;
+                sessionStatusDiv.className = currentSessionId ? 'status-active' : 'status-inactive';
+            }
+        }
+
+        // --- ৪. ইম্পোর্টার লজিক (Excel to IndexedDB) ---
+
+        function saveToIndexedDB(dataArray) {
+            if (!db) {
+                if (importStatusMessage) {
+                    importStatusMessage.className = 'error status-message';
+                    importStatusMessage.textContent = "❌ ত্রুটি: IndexedDB প্রস্তুত নয়। পেজ রিলোড করুন।";
+                }
+                return;
+            }
+
+            const transaction = db.transaction([INVENTORY_STORE_NAME], 'readwrite');
+            const objectStore = transaction.objectStore(INVENTORY_STORE_NAME);
+            let count = 0;
+            let errorCount = 0;
+
+            objectStore.clear();
+
+            dataArray.forEach((item) => {
+                if (!item.Article) { errorCount++; return; }
+                const request = objectStore.add(item);
+                request.onsuccess = () => {
+                    count++;
+                };
+                request.onerror = (e) => {
+                    console.error("ডেটা সেভ করতে সমস্যা:", e);
+                    errorCount++;
+                };
+            });
+
+            transaction.oncomplete = () => {
+                if (importStatusMessage) {
+                    importStatusMessage.className = 'success status-message';
+                    let message = `✅ সফলভাবে ${count} টি প্রোডাক্ট লোড করা হয়েছে।`;
+                    if (errorCount > 0) {
+                        message += `\n⚠️ সতর্কতা: ${errorCount} টি আইটেম বাদ পড়েছে (Article ছাড়া)।`;
+                    }
+                    importStatusMessage.textContent = message;
+                }
+                loadAllProducts();
+            };
+
+            transaction.onerror = (e) => {
+                if (importStatusMessage) {
+                    importStatusMessage.className = 'error status-message';
+                    importStatusMessage.textContent = "❌ ডেটাবেস ট্রানজাকশন ব্যর্থ: " + e.target.error;
+                }
+            };
+        }
+
+        window.processExcel = function () {
+            const fileInput = document.getElementById('excelFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                if (importStatusMessage) {
+                    importStatusMessage.className = 'error status-message';
+                    importStatusMessage.textContent = "অনুগ্রহ করে একটি এক্সেল ফাইল নির্বাচন করুন।";
+                }
+                return;
+            }
+
+            if (importStatusMessage) {
+                importStatusMessage.className = 'info status-message';
+                importStatusMessage.textContent = `ফাইল পড়া হচ্ছে: ${file.name}...`;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonArray = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    if (jsonArray.length < 2) {
+                        if (importStatusMessage) {
+                            importStatusMessage.className = 'error status-message';
+                            importStatusMessage.textContent = "❌ ত্রুটি: এক্সেল ফাইলে ডেটা পাওয়া যায়নি।";
+                        }
+                        return;
+                    }
+
+                    const rawHeaders = jsonArray[0];
+                    // হেডারগুলি থেকে স্পেস এবং অতিরিক্ত চিহ্ন মুছে ফেলা
+                    const standardizedHeaders = rawHeaders.map(h => {
+                        if (h) { return String(h).trim().replace(/\s+/g, ''); }
+                        return '';
+                    });
+                    const rawData = jsonArray.slice(1);
+
+                    const products = rawData.map(row => {
+                        const rawObj = {};
+                        standardizedHeaders.forEach((header, index) => {
+                            if (header && row[index] !== undefined) {
+                                rawObj[header] = row[index] === null || row[index] === undefined ? '' : row[index];
+                            }
+                        });
+
+                        // --- 🔥 মূল্য এবং স্টকের জন্য শক্তিশালী ম্যাপিং ফিক্স ---
+                        const product = {};
+
+                        // Article: 'Article', 'article' ইত্যাদি
+                        product.Article = String(rawObj.Article || rawObj.article || '').trim();
+
+                        // Barcode: 'Barcode', 'barcode', 'BarCode' ইত্যাদি
+                        product.Barcode = String(rawObj.Barcode || rawObj.barcode || rawObj.BarCode || '').trim();
+
+                        // Description: 'Description', 'description', 'Name' ইত্যাদি
+                        product.Description = String(rawObj.Description || rawObj.description || rawObj.Name || rawObj.name || '').trim();
+
+                        // SalePrice FIX: 'SalePrice', 'Price', 'SellingPrice' বা 'MRP' থাকলে ম্যাপ করা হবে
+                        const priceValue = rawObj.SalePrice || rawObj.Price || rawObj.SellingPrice || rawObj.MRP || rawObj.price || 0;
+                        product.SalePrice = parseFloat(priceValue) || 0;
+
+                        // CurrentStock FIX: 'CurrentStock', 'Stock', 'Qty' থাকলে ম্যাপ করা হবে
+                        const stockValue = rawObj.CurrentStock || rawObj.Stock || rawObj.Qty || rawObj.stock || 0;
+                        product.CurrentStock = parseFloat(stockValue) || 0;
+
+                        // অন্যান্য সমস্ত অপ্রয়োজনীয় কলামগুলিও সাথে যোগ করা
+                        Object.keys(rawObj).forEach(key => {
+                            // Already mapped keys (Article, Barcode, etc) এড়িয়ে যাওয়া
+                            if (!product.hasOwnProperty(key) && !product.hasOwnProperty(key.toLowerCase())) {
+                                product[key] = rawObj[key];
+                            }
+                        });
+
+                        // শুধুমাত্র Article আছে এমন প্রোডাক্ট রিটার্ন করা
+                        return product.Article ? product : null;
+
+                    }).filter(p => p !== null); // null প্রোডাক্টগুলি বাদ দেওয়া
+
+                    saveToIndexedDB(products);
+
+                } catch (error) {
+                    if (importStatusMessage) {
+                        importStatusMessage.className = 'error status-message';
+                        importStatusMessage.textContent = "❌ ফাইল প্রক্রিয়াকরণে গুরুতর ত্রুটি: " + error.message;
+                    }
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- ৫. GRN এবং স্টক আপডেট লজিক ---
+
+        window.processGRN = function () {
+            const fileInput = document.getElementById('grnFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                if (grnStatusMessage) {
+                    grnStatusMessage.className = 'error status-message';
+                    grnStatusMessage.textContent = "অনুগ্রহ করে একটি GRN ফাইল নির্বাচন করুন।";
+                }
+                return;
+            }
+
+            if (grnStatusMessage) {
+                grnStatusMessage.className = 'info status-message';
+                grnStatusMessage.textContent = `GRN ফাইল পড়া হচ্ছে: ${file.name}...`;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const grnData = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (grnData.length === 0) {
+                        if (grnStatusMessage) {
+                            grnStatusMessage.className = 'error status-message';
+                            grnStatusMessage.textContent = "❌ GRN ফাইলে কোনো ডেটা পাওয়া যায়নি।";
+                        }
+                        return;
+                    }
+
+                    updateStockFromGRN(grnData);
+
+                } catch (error) {
+                    if (grnStatusMessage) {
+                        grnStatusMessage.className = 'error status-message';
+                        grnStatusMessage.textContent = "❌ GRN ফাইল প্রক্রিয়াকরণে গুরুতর ত্রুটি: " + error.message;
+                    }
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function updateStockFromGRN(grnItems) {
+            if (!db) return;
+
+            const transaction = db.transaction([INVENTORY_STORE_NAME], 'readwrite');
+            const objectStore = transaction.objectStore(INVENTORY_STORE_NAME);
+            const articleIndex = objectStore.index('Article');
+            let updateCount = 0;
+            let notFoundCount = 0;
+
+            grnItems.forEach(item => {
+                // Header-এর ভিন্নতা মেটাতে একটি সাধারণ নাম ব্যবহার করা
+                const article = String(item.Article || item.article || '').trim();
+                const qty = parseFloat(item.ReceivedQty || item.Qty || item.qty) || 0;
+
+                if (!article || qty <= 0) return;
+
+                const getRequest = articleIndex.openCursor(article);
+
+                getRequest.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        const product = cursor.value;
+                        const dbKey = cursor.primaryKey;
+                        const currentStock = parseFloat(product.CurrentStock) || 0;
+                        product.CurrentStock = currentStock + qty;
+                        product.LastGRN = new Date().toISOString(); // নতুন ফিল্ড
+
+                        const updateRequest = objectStore.put(product, dbKey);
+                        updateRequest.onsuccess = () => {
+                            updateCount++;
+                        };
+                        cursor.continue();
+                    } else {
+                        notFoundCount++;
+                    }
+                };
+            });
+
+            transaction.oncomplete = () => {
+                if (grnStatusMessage) {
+                    grnStatusMessage.className = 'success status-message';
+                    let message = `✅ GRN সফল! ${updateCount} টি প্রোডাক্টের স্টক আপডেট করা হয়েছে।`;
+                    if (notFoundCount > 0) {
+                        message += `\n⚠️ সতর্কতা: ${notFoundCount} টি Article মাস্টার লিস্টে পাওয়া যায়নি।`;
+                    }
+                    grnStatusMessage.textContent = message;
+                }
+                loadAllProducts();
+            };
+
+            transaction.onerror = (event) => {
+                if (grnStatusMessage) {
+                    grnStatusMessage.className = 'error status-message';
+                    grnStatusMessage.textContent = "❌ GRN ট্রানজাকশন ব্যর্থ: " + event.target.error;
+                }
+            };
+        }
+
+        function updateMasterStock(itemsToUpdate) {
+            if (!db) return;
+
+            const transaction = db.transaction([INVENTORY_STORE_NAME], 'readwrite');
+            const objectStore = transaction.objectStore(INVENTORY_STORE_NAME);
+
+            itemsToUpdate.forEach(saleItem => {
+                const dbKey = saleItem.key;
+                const getRequest = objectStore.get(dbKey);
+
+                getRequest.onsuccess = (event) => {
+                    const product = event.target.result;
+                    if (product) {
+                        const currentStock = parseFloat(product.CurrentStock) || 0;
+                        const newStock = currentStock - saleItem.Qty;
+                        product.CurrentStock = Math.max(0, newStock);
+
+                        objectStore.put(product, dbKey);
+                    }
+                };
+            });
+
+            transaction.oncomplete = () => {
+                loadAllProducts();
+            };
+        }
+
+        // --- ৬. সেলস এন্ট্রি লজিক (Search, Suggestion, QTY, Table) ---
+
+        const debouncedSearch = debounce((query) => {
+            if (query.length === 0) {
+                if (suggestionsDiv) suggestionsDiv.style.display = 'none';
+                return;
+            }
+
+            const filtered = allProducts.filter(p =>
+                (p.Barcode && String(p.Barcode).toLowerCase().includes(query)) ||
+                (p.Article && String(p.Article).toLowerCase().includes(query)) ||
+                (p.Description && String(p.Description).toLowerCase().includes(query))
+            );
+
+            displaySuggestions(filtered);
+        }, 300);
+
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                debouncedSearch(e.target.value.toLowerCase().trim());
+            });
+
+            searchInput.addEventListener('keydown', (e) => {
+                const suggestions = suggestionsDiv ? Array.from(suggestionsDiv.children) : [];
+
+                if (suggestions.length === 0) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeSuggestionIndex = (activeSuggestionIndex + 1) % suggestions.length;
+                    updateActiveSuggestion(suggestions);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeSuggestionIndex = (activeSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+                    updateActiveSuggestion(suggestions);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (activeSuggestionIndex >= 0) {
+                        suggestions[activeSuggestionIndex].click();
+                    } else if (suggestions.length === 1 && searchInput.value.length > 0) {
+                        // If only one suggestion remains, auto-select it
+                        suggestions[0].click();
+                    }
+                }
+            });
+        }
+
+        function displaySuggestions(products) {
+            if (!suggestionsDiv) return;
+
+            suggestionsDiv.innerHTML = '';
+            activeSuggestionIndex = -1;
+
+            if (products.length === 0) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
+
+            products.slice(0, 10).forEach(product => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.dataset.key = product.key; // Store the IndexedDB key
+
+                item.innerHTML = `
+                <div>
+                    <strong>${product.Description || 'N/A'}</strong> 
+                    <div class="barcode-sku">
+                        <span>Article: ${product.Article || 'N/A'}</span>
+                        <span>Barcode: ${product.Barcode || 'N/A'}</span>
+                    </div>
+                </div>
+                <div class="stock-info">
+                    ৳ ${product.SalePrice ? parseFloat(product.SalePrice).toFixed(2) : '0.00'} | 
+                    Stock: ${product.CurrentStock || 0}
+                </div>
+            `;
+
+                item.onclick = () => {
+                    selectProduct(product);
+                };
+                suggestionsDiv.appendChild(item);
+            });
+
+            suggestionsDiv.style.display = 'block';
+        }
+
+        function updateActiveSuggestion(suggestions) {
+            suggestions.forEach((item, index) => {
+                item.classList.remove('active');
+                if (index === activeSuggestionIndex) {
+                    item.classList.add('active');
+                    item.scrollIntoView({ block: 'nearest' });
+                }
+            });
+        }
+
+        function selectProduct(product) {
+            selectedProduct = product;
+            if (searchInput) searchInput.value = '';
+            if (suggestionsDiv) suggestionsDiv.style.display = 'none';
+
+            // Check if item is already in sales list
+            const existingItem = salesItems.find(item => item.key === selectedProduct.key);
+            const currentStock = parseFloat(selectedProduct.CurrentStock) || 0;
+            const currentQty = existingItem ? existingItem.Qty : 0;
+
+            if (currentStock <= currentQty) {
+                alert(`❌ স্টক শেষ! স্টকে মাত্র ${currentStock} পিস আছে এবং আপনি ইতিমধ্যেই ${currentQty} পিস যোগ করেছেন।`);
+                if (searchInput) searchInput.focus();
+                return;
+            }
+
+            // Update modal product name
+            const modalProductName = document.getElementById('modalProductName');
+            if (modalProductName) modalProductName.textContent = product.Description || product.Article || 'N/A';
+
+            if (qtyInput) qtyInput.value = 1;
+
+            if (qtyModal) qtyModal.style.display = 'block';
+
+            if (qtyInput) {
+                qtyInput.focus();
+                qtyInput.select();
+                qtyInput.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        confirmQty();
+                    }
+                };
+            }
+        }
+
+        window.confirmQty = function () {
+            if (!selectedProduct || !qtyInput) return;
+
+            const qty = parseInt(qtyInput.value);
+            if (isNaN(qty) || qty <= 0) {
+                alert("পরিমাণ অবশ্যই সংখ্যা এবং ১ এর বেশি হতে হবে!");
+                qtyInput.focus();
+                qtyInput.select();
+                return;
+            }
+
+            const currentStock = parseFloat(selectedProduct.CurrentStock) || 0;
+            // Check if item is already in sales list and calculate total quantity
+            const existingItem = salesItems.find(item => item.key === selectedProduct.key);
+            const totalQtyNeeded = qty + (existingItem ? existingItem.Qty : 0);
+
+            if (currentStock < totalQtyNeeded) {
+                alert(`❌ স্টক কম আছে! স্টকে মাত্র ${currentStock} পিস আছে। বর্তমান তালিকায় ${existingItem ? existingItem.Qty : 0} পিস আছে।`);
+                qtyInput.focus();
+                qtyInput.select();
+                return;
+            }
+
+            addSalesItem(selectedProduct, qty);
+
+            if (qtyModal) qtyModal.style.display = 'none';
+            if (searchInput) searchInput.focus();
+        }
+
+        function addSalesItem(product, qty) {
+            const existingItemIndex = salesItems.findIndex(item => item.key === product.key);
+
+            const salePrice = parseFloat(product.SalePrice) || 0;
+            const name = product.Description || product.Article;
+            const article = product.Article;
+
+            if (existingItemIndex > -1) {
+                // Update quantity if item exists
+                salesItems[existingItemIndex].Qty += qty;
+                salesItems[existingItemIndex].Total = salesItems[existingItemIndex].Qty * salePrice;
+            } else {
+                // Add new item
+                salesItems.push({
+                    key: product.key,
+                    Name: name,
+                    Article: article,
+                    SalePrice: salePrice,
+                    Qty: qty,
+                    Total: qty * salePrice
+                });
+            }
+
+            renderSalesTable();
+        }
+
+        window.deleteSalesItem = function (key) {
+            salesItems = salesItems.filter(item => item.key !== key);
+            renderSalesTable();
+            if (searchInput) searchInput.focus();
+        }
+
+        function renderSalesTable() {
+            if (!salesTableBody || !grandTotalSpan) return;
+
+            salesTableBody.innerHTML = '';
+            let grandTotal = 0;
+
+            if (salesItems.length === 0) {
+                salesTableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #888; padding: 20px;">বিক্রয় করার জন্য আইটেম যোগ করুন।</td>
+                </tr>
+            `;
+            } else {
+                salesItems.forEach(item => {
+                    grandTotal += item.Total;
+                    salesTableBody.innerHTML += `
+                    <tr>
+                        <td>${item.Name}</td>
+                        <td>${item.Article}</td>
+                        <td>${item.SalePrice.toFixed(2)}</td>
+                        <td>${item.Qty}</td>
+                        <td>${item.Total.toFixed(2)}</td>
+                        <td><button class="delete-btn" onclick="deleteSalesItem(${item.key})">মুছুন</button></td>
+                    </tr>
+                `;
+                });
+            }
+
+            grandTotalSpan.textContent = grandTotal.toFixed(2);
+        }
+
+        // --- ৭. পেমেন্ট ও বিলিং লজিক ---
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (qtyModal && qtyModal.style.display === 'block') {
+                    qtyModal.style.display = 'none';
+                    if (searchInput) searchInput.focus();
+                } else if (paymentModal && paymentModal.style.display === 'block') {
+                    paymentModal.style.display = 'none';
+                    if (searchInput) searchInput.focus();
+                } else if (closingModal && closingModal.style.display === 'block') {
+                    closingModal.style.display = 'none';
+                }
+            }
+
+            if (e.key === 'F2') {
+                e.preventDefault();
+                if (closingModal && closingModal.style.display === 'block') return;
+                if (salesItems.length === 0) {
+                    alert("বিক্রয় তালিকায় কোনো আইটেম নেই!");
+                    return;
+                }
+
+                // If payment modal is open, finalize, otherwise open it.
+                if (paymentModal && paymentModal.style.display === 'block') {
+                    finalizePayment();
+                } else {
+                    openPaymentModal();
+                }
+            }
+        });
+
+        window.openPaymentModal = function () {
+            if (salesItems.length === 0) return;
+            if (!currentSessionId) {
+                alert("❌ অনুগ্রহ করে পেমেন্ট শেষ করার জন্য প্রথমে একটি সেশন শুরু করুন।");
+                return;
+            }
+
+            currentPayments = [];
+            addPaymentMethod(true); // Add 'Cash' payment by default
+            calculatePaymentTotals();
+
+            if (paymentModal) paymentModal.style.display = 'block';
+
+            const firstInput = multiPaymentContainer ? multiPaymentContainer.querySelector('input[type="number"]') : null;
+            if (firstInput) {
+                firstInput.focus();
+                firstInput.select();
+            }
+        }
+
+        window.addPaymentMethod = function (isInitial = false) {
+            const defaultMethod = 'Cash';
+            const payable = parseFloat(grandTotalSpan ? grandTotalSpan.textContent : 0) || 0;
+            const received = currentPayments.reduce((sum, p) => sum + p.amount, 0);
+
+            // Calculate remaining amount to pay
+            const remaining = Math.max(0, payable - received);
+
+            // For the first payment, it's the full payable amount. For subsequent, it's the remaining.
+            const defaultAmount = isInitial ? payable : remaining;
+
+            const newPayment = { method: defaultMethod, amount: defaultAmount };
+            currentPayments.push(newPayment);
+            renderPaymentMethods();
+        }
+
+        window.removePaymentMethod = function (index) {
+            currentPayments.splice(index, 1);
+            renderPaymentMethods();
+        }
+
+        function renderPaymentMethods() {
+            if (!multiPaymentContainer) return;
+
+            multiPaymentContainer.innerHTML = '';
+
+            currentPayments.forEach((payment, index) => {
+                const div = document.createElement('div');
+                div.className = 'payment-line';
+
+                // Method Selector
+                const select = document.createElement('select');
+                select.className = 'payment-method-select';
+                select.onchange = (e) => {
+                    payment.method = e.target.value;
+                    calculatePaymentTotals();
+                };
+                PAYMENT_METHODS.forEach(method => {
+                    const option = document.createElement('option');
+                    option.value = method;
+                    option.textContent = method;
+                    if (method === payment.method) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+
+                // Amount Input
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.placeholder = 'Amount';
+                input.value = payment.amount.toFixed(2);
+                input.oninput = (e) => {
+                    payment.amount = parseFloat(e.target.value) || 0;
+                    calculatePaymentTotals();
+                };
+
+                // Remove Button
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'X';
+                removeButton.className = 'delete-btn remove-payment-btn';
+                removeButton.onclick = () => removePaymentMethod(index);
+
+                div.appendChild(select);
+                div.appendChild(input);
+                if (currentPayments.length > 1) {
+                    div.appendChild(removeButton);
+                }
+
+                multiPaymentContainer.appendChild(div);
+            });
+            calculatePaymentTotals();
+        }
+
+
+        function calculatePaymentTotals() {
+            const payable = parseFloat(grandTotalSpan ? grandTotalSpan.textContent : 0) || 0;
+            const received = currentPayments.reduce((sum, p) => sum + p.amount, 0);
+            const change = received - payable;
+
+            if (payableAmountDiv) payableAmountDiv.textContent = `দেয় বিল: ${payable.toFixed(2)} টাকা`;
+            if (receivedAmountDiv) receivedAmountDiv.textContent = `পাওয়া গেছে: ${received.toFixed(2)} টাকা`;
+            if (changeAmountDiv) {
+                changeAmountDiv.textContent = `ফেরত: ${Math.abs(change).toFixed(2)} টাকা`;
+                changeAmountDiv.style.color = change < 0 ? '#cc3300' : '#28a745';
+                changeAmountDiv.style.backgroundColor = change < 0 ? '#fff1f0' : '#f6ffed';
+            }
+            return { payable, received, change };
+        }
+
+        function generateUniqueBillId() {
+            const date = new Date();
+            const yymmdd = date.toISOString().slice(2, 10).replace(/-/g, '');
+            const counter = (Date.now() % 100000).toString().padStart(5, '0');
+            return `INV${yymmdd}${counter}`;
+        }
+
+        window.finalizePayment = function () {
+            if (!currentSessionId) {
+                alert("❌ অনুগ্রহ করে পেমেন্ট শেষ করার জন্য প্রথমে একটি সেশন শুরু করুন।");
+                return;
+            }
+
+            const { payable, received, change } = calculatePaymentTotals();
+
+            if (received < payable) {
+                alert("পাওয়া অ্যামাউন্ট বিলের চেয়ে কম! পেমেন্ট সম্পূর্ণ করা যাচ্ছে না।");
+                return;
+            }
+
+            // Stock update happens before saving bill
+            updateMasterStock(salesItems);
+
+            const billId = generateUniqueBillId();
+            const now = new Date();
+
+            // Only save payments with amount > 0
+            const finalPayments = currentPayments.filter(p => p.amount > 0);
+
+            const newBill = {
+                id: billId,
+                date: now.toISOString(),
+                items: JSON.parse(JSON.stringify(salesItems)),
+                payments: finalPayments,
+                payable: payable,
+                received: received,
+                change: change,
+                cashierId: currentCashierId,
+                sessionId: currentSessionId,
+                timestamp: now.getTime()
+            };
+
+            saveBillToIndexedDB(newBill);
+            printBill(newBill);
+
+            if (paymentModal) paymentModal.style.display = 'none';
+            salesItems = [];
+            renderSalesTable();
+            if (searchInput) searchInput.focus();
+
+            alert(`✅ পেমেন্ট সম্পন্ন। বিল ID: ${billId}। ফেরত: ${change.toFixed(2)} টাকা।`);
+        }
+
+        function saveBillToIndexedDB(bill) {
+            if (!db) return;
+            const transaction = db.transaction([BILLS_STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(BILLS_STORE_NAME);
+            const request = store.add(bill);
+            request.onsuccess = () => {
+                console.log(`Bill ${bill.id} saved.`);
+            };
+            request.onerror = (e) => {
+                alert("বিল সেভ করতে সমস্যা: " + e.target.error.message);
+            };
+        }
+
+        // --- ৮. ক্যাশ ক্লোজিং লজিক (Blind Closing) ---
+
+        function renderDenominationTable() {
+            if (!cashCountTableBody) return;
+
+            cashCountTableBody.innerHTML = '';
+
+            DENOMINATIONS.forEach(value => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${value} ৳</td>
+                    <td><input type="number" data-value="${value}" min="0" value="0" oninput="calculateReportedCash()" style="width: 80px; padding: 5px;"></td>
+                    <td id="total-${value}">0.00 ৳</td>
+                `;
+                cashCountTableBody.appendChild(row);
+            });
+            calculateReportedCash(); // Initial calculation
+        }
+
+        // --- 🔥 সংশোধিত ফাংশন: window.calculateReportedCash (Difference ডিসপ্লে বন্ধ) ---
+        window.calculateReportedCash = function (expectedCash = 0) {
+            let reportedTotal = 0;
+
+            // 1. নোট গণনা
+            const inputs = document.querySelectorAll('#cashCountTable input[type="number"]');
+
+            inputs.forEach(input => {
+                const value = parseFloat(input.dataset.value);
+                const qty = parseInt(input.value) || 0;
+                const total = value * qty;
+                reportedTotal += total;
+
+                // টোটাল সেল আপডেট করা
+                const totalCell = document.getElementById(`total-${value}`);
+                if (totalCell) totalCell.textContent = total.toFixed(2) + ' ৳';
+            });
+
+            // 2. পার্থক্য গণনা (লজিক অক্ষত, কারণ এটি রিপোর্টের জন্য দরকার)
+            const difference = reportedTotal - expectedCash;
+
+            // 3. ডিসপ্লে আপডেট
+            if (reportedCashDisplay) reportedCashDisplay.textContent = reportedTotal.toFixed(2);
+
+            // 🔥 পার্থক্য ডিসপ্লে আপডেট করা হচ্ছে না, শুধুমাত্র মানটি গণনা করা হচ্ছে।
+            // if(differenceDisplay) { ... } <--- এই ব্লকটি আর কার্যকর হবে না
+
+            return reportedTotal;
+        }
+
+        window.openCashClosingModal = function () {
+            const activeSession = localStorage.getItem('activeSessionId');
+            if (!activeSession) {
+                alert("❌ প্রথমে একটি সেশন শুরু করুন!");
+                return;
+            }
+
+            currentSessionId = activeSession;
+            currentCashierId = localStorage.getItem('activeCashierId') || 'N/A';
+
+            if (closingModal) closingModal.style.display = 'block';
+
+            renderDenominationTable();
+            if (closingStatusDiv) closingStatusDiv.textContent = 'বিল ডেটা লোড হচ্ছে...';
+            if (closingStatusDiv) closingStatusDiv.className = 'info status-message';
+
+            if (currentSessionDisplay) currentSessionDisplay.textContent = currentSessionId;
+            loadExpectedCashAndOpenClosing();
+        }
+
+        // --- 🔥 সংশোধিত ফাংশন: loadExpectedCashAndOpenClosing (Blind Closing লজিক) ---
+        // --- সংশোধিত ফাংশন: loadExpectedCashAndOpenClosing ---
+        // --- সংশোধিত ফাংশন: loadExpectedCashAndOpenClosing (with Debugging Logs) ---
+        function loadExpectedCashAndOpenClosing() {
+            if (!db) return;
+
+            // Expected Cash ও Difference ডিসপ্লে হাইড করা (Blind Closing এর জন্য)
+            const expectedCashRow = document.getElementById('expectedCashRow');
+            if (expectedCashRow) expectedCashRow.style.display = 'none';
+            const differenceRow = document.getElementById('differenceRow');
+            if (differenceRow) differenceRow.style.display = 'none';
+
+
+            const transaction = db.transaction([BILLS_STORE_NAME], 'readonly');
+            const billsStore = transaction.objectStore(BILLS_STORE_NAME);
+            const sessionIndex = billsStore.index('sessionId');
+
+            let totalNetCashSales = 0; // মোট নেট ক্যাশ বিক্রয় (Gross Cash Received - Change Returned)
+
+            // বর্তমান সেশন আইডি কনসোল-এ দেখা
+            console.log(`[CLOSING] Searching bills for active session ID: ${currentSessionId}`);
+
+            const request = sessionIndex.openCursor(currentSessionId);
+
+            request.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    const bill = cursor.value;
+
+                    // Step 1: Find the cash amount paid by the customer
+                    const cashPaymentAmount = bill.payments.reduce((sum, p) =>
+                        p.method === 'Cash' ? sum + safeParseFloat(p.amount) : sum, 0
+                    );
+
+                    // Step 2: Calculate the net cash that remains in the drawer.
+                    const netCashFromBill = cashPaymentAmount - safeParseFloat(bill.change);
+
+                    totalNetCashSales += netCashFromBill;
+
+                    // --- DEBUG LOGS (F12 Console এ দেখুন) ---
+                    console.log(`--- Bill ID: ${bill.id} ---`);
+                    console.log(`Bill Change: ${safeParseFloat(bill.change)}`);
+                    console.log(`Cash Payment Amount (Received): ${cashPaymentAmount}`);
+                    console.log(`Net Cash from Bill (cashPaymentAmount - bill.change): ${netCashFromBill}`);
+                    console.log(`Current Total Net Cash Sales: ${totalNetCashSales}`);
+                    // ------------------------------------------
+
+                    cursor.continue();
+                } else {
+                    // --- FINAL CALCULATION ---
+                    const expectedCash = totalNetCashSales;
+
+                    // ... (বাকি কোড অপরিবর্তিত) ...
+                    if (expectedCashDisplay) expectedCashDisplay.textContent = expectedCash.toFixed(2);
+                    closingModal.dataset.expectedCash = expectedCash.toFixed(2);
+
+                    if (closingStatusDiv) {
+                        closingStatusDiv.className = 'info status-message';
+                        closingStatusDiv.textContent = `সেশনের প্রত্যাশিত ক্যাশ: ${expectedCash.toFixed(2)} ৳. নোট গণনা শুরু করুন।`;
+                    }
+
+                    console.log(`[CLOSING] Final Expected Cash calculated: ${expectedCash.toFixed(2)} ৳`);
+                }
+            };
+
+            request.onerror = (e) => {
+                console.error("[CLOSING] বিল ডেটা লোড করতে সমস্যা: ", e.target.error);
+                if (closingStatusDiv) {
+                    closingStatusDiv.className = 'error status-message';
+                    closingStatusDiv.textContent = "❌ বিল ডেটা লোড করতে সমস্যা: " + e.target.error.message;
+                }
+            };
+        }
+        // --- 🔥 সংশোধিত ফাংশন: window.closeSession (Final Message Fix) ---
+        window.closeSession = function () {
+            if (!currentSessionId) {
+                alert("❌ সেশন আইডি পাওয়া যায়নি।");
+                return;
+            }
+            if (!db) return;
+
+            // ১. নোট গণনা থেকে Reported Cash পাওয়া
+            const reportedCash = calculateReportedCash();
+            // Expected Cash লুকানো ডিসপ্লে থেকে মান নেওয়া
+            const expectedCash = parseFloat(expectedCashDisplay ? expectedCashDisplay.textContent : 0) || 0;
+            const cashDifference = reportedCash - expectedCash;
+
+            if (reportedCash < 0) {
+                alert("গণনাকৃত ক্যাশ অ্যামাউন্ট নেগেটিভ হতে পারে না।");
+                return;
+            }
+
+            // নোট গণনার ডেটা সেভ করার জন্য সংগ্রহ
+            const notesCount = [];
+            document.querySelectorAll('#cashCountTable input[type="number"]').forEach(input => {
+                const value = parseFloat(input.dataset.value);
+                const qty = parseInt(input.value) || 0;
+                notesCount.push({ denomination: value, qty: qty, total: value * qty });
+            });
+
+
+            const transaction = db.transaction([BILLS_STORE_NAME], 'readonly');
+            const billsStore = transaction.objectStore(BILLS_STORE_NAME);
+            const sessionIndex = billsStore.index('sessionId');
+
+            // ২. বিল থেকে মোট ক্যাশ বিক্রির হিসাব নিশ্চিত করা (এই লজিকটি রেখে দেওয়া হলো, যদিও expectedCashDisplay থেকে মান নেওয়া হয়েছে)
+            let totalCashSales = 0;
+
+            sessionIndex.openCursor(currentSessionId).onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    const bill = cursor.value;
+                    bill.payments.forEach(p => {
+                        if (p.method === 'Cash') {
+                            totalCashSales += p.amount;
+                        }
+                    });
+                    cursor.continue();
+                } else {
+
+                    // ৩. ক্লোজিং Summary তৈরি
+                    let closingSummary = {
+                        sessionId: currentSessionId,
+                        cashierId: currentCashierId,
+                        reportTime: new Date().toISOString(),
+                        expectedCash: expectedCash,
+                        reportedCash: reportedCash,
+                        difference: cashDifference,
+                        status: cashDifference === 0 ? 'MATCHED' : (cashDifference > 0 ? 'OVER' : 'SHORT'),
+                        notesCount: notesCount // নোট গণনার ডেটা যোগ করা হলো
+                    };
+
+                    // ৪. ক্যাশ ক্লোজিং হিস্টরি সেভ করা
+                    saveCashClosingHistory(closingSummary);
+
+                    // ৫. সেশনটি IndexedDB এবং localStorage থেকে বন্ধ করা।
+                    updateSessionStatusInDB_CLOSE_SESSION(closingSummary);
+
+                    // ৬. রিপোর্ট জেনারেট
+                    generateClosingReport(closingSummary);
+
+                    // 🔥 সংশোধিত লজিক: চূড়ান্ত মেসেজে চিহ্নসহ পার্থক্য দেখানো
+                    const diffMessage = cashDifference === 0
+                        ? cashDifference.toFixed(2)
+                        : (cashDifference > 0
+                            ? `+${cashDifference.toFixed(2)}`
+                            : cashDifference.toFixed(2));
+
+
+                    if (closingStatusDiv) {
+                        closingStatusDiv.textContent = `✅ ক্লোজিং সফল! ডিফারেন্স: ${diffMessage} টাকা। সেশন বন্ধ করা হলো।`;
+                        closingStatusDiv.className = 'success status-message';
+                    }
+
+                    // ৭. Modal বন্ধ করা এবং নতুন সেশন স্ট্যাটাস লোড করা
+                    setTimeout(() => {
+                        if (closingModal) closingModal.style.display = 'none';
+
+                        // গ্লোবাল সেশন ভেরিয়েবল রিসেট করা
+                        currentSessionId = null;
+                        currentCashierId = null;
+
+                        checkActiveSession();
+                        showLoginPage(); // ক্লোজিং এর পর সরাসরি লগইন পেজে ফিরে আসা
+                    }, 3000);
+                }
+            };
+
+            transaction.onerror = (e) => {
+                alert("ক্যাশ বিক্রির ডেটা আনতে সমস্যা: " + e.target.error.message);
+            };
+        }
+
+        function updateSessionStatusInDB_CLOSE_SESSION(closingSummary) {
+            if (!db) return;
+            const transaction = db.transaction([SESSIONS_STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(SESSIONS_STORE_NAME);
+
+            const request = store.get(closingSummary.sessionId);
+
+            request.onsuccess = (event) => {
+                const session = event.target.result;
+                if (session) {
+                    session.status = 'CLOSED';
+                    session.endTime = new Date().toISOString();
+                    session.closingSummary = closingSummary;
+                    store.put(session);
+                }
+            };
+
+            // localStorage থেকে সেশন ডেটা মুছে ফেলা
+            localStorage.removeItem('activeSessionId');
+            localStorage.removeItem('activeCashierId');
+        }
+
+        function saveCashClosingHistory(summary) {
+            if (!db) return;
+            const transaction = db.transaction([CLOSING_STORE_NAME], 'readwrite');
+            const store = transaction.objectStore(CLOSING_STORE_NAME);
+            const request = store.add(summary);
+            request.onsuccess = () => {
+                console.log(`Cash Closing Report for session ${summary.sessionId} saved.`);
+            };
+            request.onerror = (e) => {
+                console.error("Cash Closing Report সেভ করতে সমস্যা: " + e.target.error.message);
+            };
+        }
+
+        // --- ৯. রিপোর্ট ও বিল প্রিন্ট লজিক ---
+
+        function generateClosingReport(summary) {
+            // নোট গণনার ডেটা তৈরি করা 
+            const noteData = summary.notesCount ? summary.notesCount.filter(n => n.qty > 0) : [];
+
+            let content = [
+                { text: 'Cash Closing Report (Final)', style: 'header' },
+                { text: `Session ID: ${summary.sessionId}`, style: 'subheader' },
+                { text: `Cashier ID: ${summary.cashierId}`, margin: [0, 0, 0, 5] },
+                { text: `Report Time: ${new Date(summary.reportTime).toLocaleString()}` },
+                { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1 }] },
+                {
+                    columns: [
+                        { text: `Expected Cash (System): ${summary.expectedCash.toFixed(2)} ৳`, style: 'reportItem' },
+                        { text: `Reported Cash (Count): ${summary.reportedCash.toFixed(2)} ৳`, style: 'reportItem' },
+                        // রিপোর্ট PDF-এ পার্থক্য দেখানোর জন্য ফর্মাটিং
+                        { text: `Difference: ${summary.difference > 0 ? '+' : ''}${summary.difference.toFixed(2)} ৳`, style: summary.difference !== 0 ? 'difference' : 'reportItem' }
+                    ],
+                    margin: [0, 10, 0, 10]
+                }
+            ];
+
+            // নোট গণনার টেবিল যোগ করা
+            if (noteData.length > 0) {
+                content.push({ text: 'Note Count Details:', style: 'tableHeader', margin: [0, 10, 0, 5] });
+                content.push({
+                    table: {
+                        headerRows: 1,
+                        widths: ['*', 50, 80],
+                        body: [
+                            ['Denomination (৳)', 'Qty', 'Total (৳)']
+                        ].concat(noteData.map(n => [
+                            n.denomination.toFixed(2),
+                            n.qty,
+                            n.total.toFixed(2)
+                        ]))
+                    },
+                    layout: 'lightHorizontalLines'
+                });
+            }
+
+            const docDefinition = {
+                content: content,
+                styles: {
+                    header: { fontSize: 22, bold: true, alignment: 'center', margin: [0, 0, 0, 10] },
+                    subheader: { fontSize: 16, bold: true, margin: [0, 5, 0, 5] },
+                    reportItem: { fontSize: 12, margin: [0, 2, 0, 2] },
+                    difference: { fontSize: 12, bold: true, color: summary.difference !== 0 ? 'red' : 'black', margin: [0, 2, 0, 2] },
+                    tableHeader: { bold: true, fontSize: 13, color: 'black' }
+                }
+            };
+
+            pdfMake.createPdf(docDefinition).download(`Cash_Closing_Report_${summary.sessionId}.pdf`);
+        }
+
+        function printBill(bill) {
+            const billItems = bill.items.map(item => [
+                item.Name,
+                item.Qty,
+                item.SalePrice.toFixed(2),
+                item.Total.toFixed(2)
+            ]);
+
+            const docDefinition = {
+                content: [
+                    { text: 'Customer Bill (Invoice)', style: 'header' },
+                    { text: `Bill ID: ${bill.id}`, style: 'subheader' },
+                    { text: `Date: ${new Date(bill.date).toLocaleString()}` },
+                    { text: `Cashier: ${bill.cashierId}`, margin: [0, 0, 0, 10] },
+                    { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1 }] },
+
+                    // Items Table
+                    {
+                        table: {
+                            headerRows: 1,
+                            widths: ['*', 40, 60, 60],
+                            body: [
+                                ['Item Name', 'Qty', 'Price', 'Total']
+                            ].concat(billItems)
+                        },
+                        layout: 'lightHorizontalLines',
+                        margin: [0, 10, 0, 10]
+                    },
+
+                    // Totals Section
+                    { text: `Payable Amount: ${bill.payable.toFixed(2)} ৳`, alignment: 'right', margin: [0, 5, 0, 5], style: 'totalText' },
+                    { text: `Received Amount: ${bill.received.toFixed(2)} ৳`, alignment: 'right', style: 'totalText' },
+                    { text: `Change: ${bill.change.toFixed(2)} ৳`, alignment: 'right', style: 'totalTextBold' },
+
+                    { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 0.5 }], margin: [0, 10, 0, 10] },
+
+                    // Payments Breakdown
+                    { text: 'Payments:', style: 'paymentHeader' },
+                    ...bill.payments.map(p => ({ text: `${p.method}: ${p.amount.toFixed(2)} ৳`, alignment: 'right', style: 'paymentDetail' })),
+
+                    { text: 'Thank you!', alignment: 'center', margin: [0, 20, 0, 0] }
+                ],
+                styles: {
+                    header: { fontSize: 18, bold: true, alignment: 'center', margin: [0, 0, 0, 10] },
+                    subheader: { fontSize: 14, bold: true, margin: [0, 5, 0, 5] },
+                    totalText: { fontSize: 12 },
+                    totalTextBold: { fontSize: 14, bold: true },
+                    paymentHeader: { fontSize: 10, bold: true, margin: [0, 5, 0, 0] },
+                    paymentDetail: { fontSize: 10 }
+                }
+            };
+            pdfMake.createPdf(docDefinition).download(`Bill_${bill.id}.pdf`);
+        }
+
+        window.downloadInventoryExcel = async function () {
+            if (allProducts.length === 0) {
+                alert("ইনভেন্টরি ডেটা পাওয়া যায়নি। প্রথমে ফাইল আপলোড করুন।");
+                return;
+            }
+
+            if (!ExcelJS) {
+                alert("ExcelJS লাইব্রেরি লোড হয়নি।");
+                return;
+            }
+
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Current Inventory');
+
+            // Exclude 'key' field from columns
+            const columns = Object.keys(allProducts[0]).map(key => ({
+                header: key,
+                key: key,
+                width: key.length > 20 ? 30 : key.length + 5
+            }));
+            const finalColumns = columns.filter(col => col.key !== 'key');
+
+            worksheet.columns = finalColumns;
+
+            allProducts.forEach(product => {
+                const rowData = {};
+                finalColumns.forEach(col => {
+                    rowData[col.key] = product[col.key];
+                });
+                worksheet.addRow(rowData);
+            });
+
+            try {
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Inventory_Master_Stock_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                alert("ইনভেন্টরি ফাইল ডাউনলোড সম্পন্ন হয়েছে।");
+            } catch (error) {
+                alert("এক্সেল ফাইল তৈরিতে সমস্যা হয়েছে: " + error.message);
+            }
+        }
+
+        window.downloadBillHistory = function (format) {
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            if (!startDateInput || !endDateInput || !startDateInput.value || !endDateInput.value) {
+                alert("অনুগ্রহ করে শুরুর এবং শেষের তারিখ নির্বাচন করুন।");
+                return;
+            }
+            if (!db) return;
+
+            const startISO = new Date(startDateInput.value).toISOString().slice(0, 10);
+            const endISODate = new Date(endDateInput.value);
+            endISODate.setDate(endISODate.getDate() + 1); // Get all bills up to the end of the selected end date
+            const endISO = endISODate.toISOString().slice(0, 10);
+
+            const transaction = db.transaction([BILLS_STORE_NAME], 'readonly');
+            const store = transaction.objectStore(BILLS_STORE_NAME);
+            const dateIndex = store.index('date');
+
+            const range = IDBKeyRange.bound(startISO, endISO, false, true);
+
+            const request = dateIndex.getAll(range);
+
+            request.onsuccess = (event) => {
+                const bills = event.target.result;
+                if (bills.length === 0) {
+                    alert(`Selected date range (${startDateInput.value} to ${endDateInput.value}) এর জন্য কোনো বিল পাওয়া যায়নি।`);
+                    return;
+                }
+
+                const dateRange = `${startDateInput.value} to ${endDateInput.value}`;
+
+                if (format === 'excel') {
+                    generateBillHistoryExcel(bills, dateRange);
+                } else if (format === 'pdf') {
+                    generateBillHistoryPDF(bills, dateRange);
+                }
+            };
+        }
+
+        function generateBillHistoryExcel(bills, dateRange) {
+            if (!ExcelJS) {
+                alert("ExcelJS লাইব্রেরি লোড হয়নি।");
+                return;
+            }
+
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Bill History');
+
+            const columns = [
+                { header: 'Bill ID', key: 'id', width: 20 },
+                { header: 'Date/Time', key: 'date', width: 25 },
+                { header: 'Cashier ID', key: 'cashierId', width: 12 },
+                { header: 'Session ID', key: 'sessionId', width: 15 },
+                { header: 'Total Payable', key: 'payable', width: 15 },
+                { header: 'Payment Methods', key: 'payments', width: 30 },
+                { header: 'Items Sold', key: 'items', width: 50 }
+            ];
+            worksheet.columns = columns;
+
+            bills.forEach(bill => {
+                const rowData = {
+                    id: bill.id,
+                    date: new Date(bill.date).toLocaleString(),
+                    cashierId: bill.cashierId,
+                    sessionId: bill.sessionId,
+                    payable: bill.payable.toFixed(2),
+                    payments: bill.payments.map(p => `${p.method}: ${p.amount.toFixed(2)}`).join(', '),
+                    items: bill.items.map(item => `${item.Name} x${item.Qty}`).join(', ')
+                };
+                worksheet.addRow(rowData);
+            });
+
+            workbook.xlsx.writeBuffer().then(buffer => {
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Bill_History_Export_${dateRange.replace(/\s/g, '_')}.xlsx`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                alert("বিল হিস্টরি এক্সেল ডাউনলোড সম্পন্ন হয়েছে।");
+            }).catch(error => {
+                alert("এক্সেল ফাইল তৈরিতে সমস্যা হয়েছে: " + error.message);
+            });
+        }
+
+        function generateBillHistoryPDF(bills, dateRange) {
+            if (!pdfMake) {
+                alert("PDFMake লাইব্রেরি লোড হয়নি।");
+                return;
+            }
+
+            const docDefinition = {
+                content: [
+                    { text: 'Bill History Report', style: 'header' },
+                    { text: `Date Range: ${dateRange}`, style: 'subheader' },
+                    {
+                        table: {
+                            headerRows: 1,
+                            widths: [80, 100, 50, 60, '*'],
+                            body: [
+                                ['Bill ID', 'Date/Time', 'Cashier', 'Payable', 'Items']
+                            ].concat(bills.map(bill => [
+                                bill.id,
+                                new Date(bill.date).toLocaleString(),
+                                bill.cashierId,
+                                bill.payable.toFixed(2),
+                                bill.items.map(item => `${item.Name} x${item.Qty}`).join(', ')
+                            ]))
+                        },
+                        layout: 'lightHorizontalLines'
+                    }
+                ],
+                styles: {
+                    header: { fontSize: 18, bold: true, alignment: 'center', margin: [0, 0, 0, 10] },
+                    subheader: { fontSize: 15, bold: true, margin: [0, 10, 0, 5] },
+                }
+            };
+            pdfMake.createPdf(docDefinition).download(`Bill_History_Export_${dateRange.replace(/\s/g, '_')}.pdf`);
+        }
+
+        window.downloadAllBills = function (format) {
+            if (!db) return;
+
+            const transaction = db.transaction([BILLS_STORE_NAME], 'readonly');
+            const store = transaction.objectStore(BILLS_STORE_NAME);
+            const request = store.getAll();
+
+            request.onsuccess = (event) => {
+                const bills = event.target.result;
+                if (bills.length === 0) {
+                    alert("কোনো বিল পাওয়া যায়নি।");
+                    return;
+                }
+
+                if (format === 'excel') {
+                    generateBillHistoryExcel(bills, 'All_Time');
+                } else if (format === 'pdf') {
+                    generateBillHistoryPDF(bills, 'All_Time');
+                }
+            };
+        }
+
+        window.searchAndPrintBill = function () {
+            if (!billIdSearchInput || !db) return;
+            const billNo = billIdSearchInput.value.trim();
+            if (!billNo) {
+                alert("বিল নম্বর দিন।");
+                return;
+            }
+
+            const transaction = db.transaction([BILLS_STORE_NAME], 'readonly');
+            const store = transaction.objectStore(BILLS_STORE_NAME);
+            const request = store.get(billNo);
+
+            request.onsuccess = (event) => {
+                const bill = event.target.result;
+                if (bill) {
+                    printBill(bill);
+                } else {
+                    alert(`বিল নম্বর ${billNo} পাওয়া যায়নি।`);
+                }
+            };
+            request.onerror = (e) => {
+                alert("বিল সার্চ করতে সমস্যা: " + e.target.error.message);
+            };
+        }
+
+        // --- ১০. ভিউ টগলার ---
+
+        function showSalesView() {
+            const sales = document.getElementById('salesView');
+            const admin = document.getElementById('adminView');
+
+            if (sales) sales.style.display = 'block';
+            if (admin) admin.style.display = 'none';
+
+            // Sales view এ এলে সার্চ ইনপুট ফোকাস করা
+            if (searchInput) searchInput.focus();
+        }
+
+        function showAdminView() {
+            const sales = document.getElementById('salesView');
+            const admin = document.getElementById('adminView');
+
+            if (sales) sales.style.display = 'none';
+            if (admin) admin.style.display = 'block';
+        }
+
+        // --- ১১. ইনিশিয়ালাইজেশন ---
+        window.onload = () => {
+            openDatabaseAndLoadData();
+            renderSalesTable();
+
+            // *নতুন*: লগইন বাটন-এর ইভেন্ট লিসেনার যোগ
+            const loginButton = document.getElementById('loginButton');
+            if (loginButton) {
+                loginButton.addEventListener('click', attemptLogin);
+                // এন্টার (Enter) প্রেস করলে লগইন
+                document.getElementById('passwordInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        attemptLogin();
+                    }
+                });
+            }
+
+            // *নতুন*: পেজ লোড হলে শুধুমাত্র লগইন ভিউ দেখাও
+            document.getElementById('loginModal').style.display = 'flex';
+            document.getElementById('mainContainer').style.display = 'none';
+
+            // showAdminView(); // এই লাইনটি এখন দরকার নেই, লগইন সফল হলে কল হবে
+        }
+    </script>
+
+</body>
+
+</html>
